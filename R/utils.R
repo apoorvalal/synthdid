@@ -1,8 +1,10 @@
 # collapse Y to an N0+1 x T0+1 vector by averaging the last N1=nrow(Y)-N0 rows and T1=ncol(Y)-T0 columns
 collapsed.form = function(Y, N0, T0) {
   N = nrow(Y); T = ncol(Y)
-  rbind(cbind(Y[1:N0, 1:T0, drop = FALSE], rowMeans(Y[1:N0, (T0 + 1):T, drop = FALSE])),
-    cbind(t(colMeans(Y[(N0 + 1):N, 1:T0, drop = FALSE])), mean(Y[(N0 + 1):N, (T0 + 1):T, drop = FALSE])))
+  rbind(
+    cbind(Y[1:N0, 1:T0, drop = FALSE], rowMeans(Y[1:N0, (T0 + 1):T, drop = FALSE])),
+    cbind(t(colMeans(Y[(N0 + 1):N, 1:T0, drop = FALSE])), mean(Y[(N0 + 1):N, (T0 + 1):T, drop = FALSE]))
+  )
 }
 
 # return the component-wise sum of decreasing vectors in which NA is taken to mean that the vector has stopped decreasing
@@ -17,6 +19,44 @@ pairwise.sum.decreasing = function(x, y) {
   pairwise.sum
 }
 
+# %%
+# %% ####################################################
+#' Convert a long panel to wide matrix (cleaner data.table version)
+#' @param dt data.table in long panel format
+#' @param unit_id unit id name
+#' @param time_id time id name
+#' @param treat   treatement name
+#' @param outcome outcome name
+#' @return list with treatment matrix W, outcome matrix Y, N0 (number of control units), and T0 (number of untreated periods)
+#' @import data.table
+#' @export
+panelMatrices = function(dt, unit_id, time_id, treat, outcome) {
+  dt = as.data.table(dt)
+  # function to extract first column, convert it to rownames for a matrix
+  matfy = function(X) {
+    idnames = as.character(X[[1]])
+    X2 = as.matrix(X[, -1])
+    rownames(X2) = idnames
+    X2
+  }
+  # reshape formula
+  fmla = as.formula(paste0(unit_id, "~", time_id))
+  # treatment matrix
+  kv = c(unit_id, time_id, treat)
+  W = matfy(dcast(dt[, ..kv], fmla, value.var = treat))
+  # outcome matrix
+  kv = c(unit_id, time_id, outcome)
+  Y = matfy(dcast(dt[, ..kv], fmla, value.var = outcome))
+  # move treated units to bottom of W and Y matrix
+  treatIDs = which(rowSums(W) > 1)
+  W = rbind(W[-treatIDs, ], W[treatIDs, , drop = FALSE])
+  Y = rbind(Y[-treatIDs, ], Y[treatIDs, , drop = FALSE])
+  N0 = nrow(W) - length(treatIDs)
+  T0 = min(which(colSums(W) > 0)) - 1
+  list(W = W, Y = Y, N0 = N0, T0 = T0)
+}
+
+# %%
 #' Convert a long (balanced) panel to a wide matrix
 #'
 #' Converts a data set in panel form to matrix format required by synthdid estimators.
@@ -25,7 +65,7 @@ pairwise.sum.decreasing = function(x, y) {
 #' at all times, and all treated units must begin treatment simultaneosly. This function
 #' creates num.units x num.time.periods matrices Y and W of outcomes and treatment indicators.
 #' In these matrices, columns are sorted by time, and by default (when treated.last=TRUE),
-#' rows for control units appear before those of treated units. 
+#' rows for control units appear before those of treated units.
 #'
 #' @param panel A data.frame with columns consisting of units, time, outcome, and treatment indicator.
 #' @param unit The column number/name corresponding to the unit identifier. Default is 1.
@@ -42,7 +82,7 @@ pairwise.sum.decreasing = function(x, y) {
 #' data("california_prop99")
 #' # Transform to N*T matrix format required for synthdid,
 #' # where N is the number of units and T the time periods.
-#' setup <- panel.matrices(california_prop99, unit = 1, time = 2, outcome = 3, treatment = 4)
+#' setup = panel.matrices(california_prop99, unit = 1, time = 2, outcome = 3, treatment = 4)
 #'
 #' # Compute synthdid estimate
 #' synthdid_estimate(setup$Y, setup$N0, setup$T0)
@@ -55,7 +95,13 @@ panel.matrices = function(panel, unit = 1, time = 2, outcome = 3, treatment = 4,
   if (!all(keep %in% 1:ncol(panel) | keep %in% colnames(panel))) {
     stop("Column identifiers should be either integer or column names in `panel`.")
   }
-  index.to.name = function(x) { if(x %in% 1:ncol(panel)) { colnames(panel)[x] } else { x } }
+  index.to.name = function(x) {
+    if (x %in% 1:ncol(panel)) {
+      colnames(panel)[x]
+    } else {
+      x
+    }
+  }
   unit = index.to.name(unit)
   time = index.to.name(time)
   outcome = index.to.name(outcome)
@@ -63,7 +109,7 @@ panel.matrices = function(panel, unit = 1, time = 2, outcome = 3, treatment = 4,
   keep = c(unit, time, outcome, treatment)
 
   panel = panel[keep]
-  if (!is.data.frame(panel)){
+  if (!is.data.frame(panel)) {
     stop("Unsupported input type `panel.`")
   }
   if (anyNA(panel)) {
@@ -77,9 +123,12 @@ panel.matrices = function(panel, unit = 1, time = 2, outcome = 3, treatment = 4,
   }
   # Convert potential factor/date columns to character
   panel = data.frame(
-    lapply(panel, function(col) {if (is.factor(col) || inherits(col, "Date")) as.character(col) else col}), stringsAsFactors = FALSE
+    lapply(panel, function(col) {
+      if (is.factor(col) || inherits(col, "Date")) as.character(col) else col
+    }),
+    stringsAsFactors = FALSE
   )
-  val <- as.vector(table(panel[, unit], panel[, time]))
+  val = as.vector(table(panel[, unit], panel[, time]))
   if (!all(val == 1)) {
     stop("Input `panel` must be a balanced panel: it must have an observation for every unit at every time.")
   }
@@ -87,73 +136,99 @@ panel.matrices = function(panel, unit = 1, time = 2, outcome = 3, treatment = 4,
   panel = panel[order(panel[, unit], panel[, time]), ]
   num.years = length(unique(panel[, time]))
   num.units = length(unique(panel[, unit]))
-  Y = matrix(panel[,outcome], num.units, num.years, byrow = TRUE,
-             dimnames = list(unique(panel[,unit]), unique(panel[,time])))
-  W = matrix(panel[,treatment], num.units, num.years, byrow = TRUE,
-             dimnames = list(unique(panel[,unit]), unique(panel[,time])))
-  w = apply(W, 1, any)                         # indicator for units that are treated at any time
-  T0 = unname(which(apply(W, 2, any))[1]-1)    # last period nobody is treated
+  Y = matrix(panel[, outcome], num.units, num.years,
+    byrow = TRUE,
+    dimnames = list(unique(panel[, unit]), unique(panel[, time]))
+  )
+  W = matrix(panel[, treatment], num.units, num.years,
+    byrow = TRUE,
+    dimnames = list(unique(panel[, unit]), unique(panel[, time]))
+  )
+  w = apply(W, 1, any) # indicator for units that are treated at any time
+  T0 = unname(which(apply(W, 2, any))[1] - 1) # last period nobody is treated
   N0 = sum(!w)
 
-  if(! (all(W[!w,] == 0) && all(W[,1:T0] == 0) && all(W[w, (T0+1):ncol(Y)]==1))) {
+  if (!(all(W[!w, ] == 0) && all(W[, 1:T0] == 0) && all(W[w, (T0 + 1):ncol(Y)] == 1))) {
     stop("The package cannot use this data. Treatment adoption is not simultaneous.")
   }
 
-  unit.order = if(treated.last) { order(W[,T0+1], rownames(Y)) } else { 1:nrow(Y) }
+  unit.order = if (treated.last) {
+    order(W[, T0 + 1], rownames(Y))
+  } else {
+    1:nrow(Y)
+  }
   list(Y = Y[unit.order, ], N0 = N0, T0 = T0, W = W[unit.order, ])
 }
 
+# %%
 #' Get timesteps from panel matrix Y
 #'
 #' timesteps are stored as colnames(Y), but column names cannot be Date objects.
 #' Instead, we use strings. If they are strings convertible to dates, return that
 #'
-#' @param Y a matrix 
+#' @param Y a matrix
 #' @return its column names interpreted as Dates if possible
 #' @export
 timesteps = function(Y) {
-    tryCatch({
-	as.Date(colnames(Y))
-    }, error = function(e) { colnames(Y) })
+  tryCatch(
+    {
+      as.Date(colnames(Y))
+    },
+    error = function(e) {
+      colnames(Y)
+    }
+  )
 }
 
 
 ## define some convenient accessors
 setOldClass("synthdid_estimate")
-get_slot = function(name) { function(object) { object[[name]] } }
+get_slot = function(name) {
+  function(object) {
+    object[[name]]
+  }
+}
 setGeneric('weights')
-setGeneric('Y',      get_slot('Y'))
+setGeneric('Y', get_slot('Y'))
 setGeneric('lambda', get_slot('lambda'))
-setGeneric('omega',  get_slot('omega'))
-setMethod(weights, signature='synthdid_estimate',  definition=function(object) { attr(object, 'weights') })
-setMethod(Y,       signature='synthdid_estimate',  definition=function(object) { attr(object, 'setup')$Y })
-setMethod(lambda,  signature='synthdid_estimate',  definition=function(object) { lambda(weights(object)) })
-setMethod(omega,   signature='synthdid_estimate',  definition=function(object) { omega(weights(object))  })
+setGeneric('omega', get_slot('omega'))
+setMethod(weights, signature = 'synthdid_estimate', definition = function(object) {
+  attr(object, 'weights')
+})
+setMethod(Y, signature = 'synthdid_estimate', definition = function(object) {
+  attr(object, 'setup')$Y
+})
+setMethod(lambda, signature = 'synthdid_estimate', definition = function(object) {
+  lambda(weights(object))
+})
+setMethod(omega, signature = 'synthdid_estimate', definition = function(object) {
+  omega(weights(object))
+})
 
 
+# %%
 # A convenience function for generating data for unit tests.
 random.low.rank = function() {
-  n_0 <- 100
-  n_1 <- 10
-  T_0 <- 120
-  T_1 <- 20
-  n <- n_0 + n_1
-  T <- T_0 + T_1
-  tau <- 1
-  sigma <- .5
-  rank <- 2
-  rho <- 0.7
-  var <- outer(1:T, 1:T, FUN=function(x, y) rho^(abs(x-y)))
-
-  W <- (1:n > n_0) %*% t(1:T > T_0)
-  U <- matrix(rpois(rank * n, sqrt(sample(1:n)) / sqrt(n)), n, rank)
-  V <- matrix(rpois(rank * T, sqrt(1:T) / sqrt(T)), T, rank)
-  alpha <- outer(10*sample(1:n)/n, rep(1,T))
-  beta <-  outer(rep(1,n), 10*(1:T)/T)
-  mu <- U %*% t(V) + alpha + beta
-  error <- mvtnorm::rmvnorm(n, sigma = var, method = "chol")
-  Y <- mu + tau * W  + sigma * error
+  n_0 = 100
+  n_1 = 10
+  T_0 = 120
+  T_1 = 20
+  n = n_0 + n_1
+  T = T_0 + T_1
+  tau = 1
+  sigma = .5
+  rank = 2
+  rho = 0.7
+  var = outer(1:T, 1:T, FUN = function(x, y) rho^(abs(x - y)))
+  W = (1:n > n_0) %*% t(1:T > T_0)
+  U = matrix(rpois(rank * n, sqrt(sample(1:n)) / sqrt(n)), n, rank)
+  V = matrix(rpois(rank * T, sqrt(1:T) / sqrt(T)), T, rank)
+  alpha = outer(10 * sample(1:n) / n, rep(1, T))
+  beta = outer(rep(1, n), 10 * (1:T) / T)
+  mu = U %*% t(V) + alpha + beta
+  error = mvtnorm::rmvnorm(n, sigma = var, method = "chol")
+  Y = mu + tau * W + sigma * error
   rownames(Y) = 1:n
   colnames(Y) = 1:T
-  list(Y=Y, L=mu, N0=n_0, T0=T_0)
+  list(Y = Y, L = mu, N0 = n_0, T0 = T_0)
 }

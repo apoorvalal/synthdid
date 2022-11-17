@@ -1,7 +1,9 @@
 #' A function mapping a numeric vector to a (presumably sparser) numeric vector of the same shape to
 #' be passed onto synthdid_estimate.
 #' @param v a vector
-sparsify_function = function(v) { v[v <= max(v)/4] = 0; v/sum(v) }
+sparsify_function = function(v){
+    v[v <= max(v) / 4] = 0; v / sum(v)
+  }
 
 #' Computes the synthetic diff-in-diff estimate for an average treatment effect on a treated block.
 #'
@@ -35,21 +37,27 @@ sparsify_function = function(v) { v[v <= max(v)/4] = 0; v/sum(v) }
 #'         as well as regression coefficients beta if X is passed.
 #'         'setup' is a list describing the problem passed in: Y, N0, T0, X.
 #' @export synthdid_estimate
-synthdid_estimate <- function(Y, N0, T0, X = array(dim = c(dim(Y), 0)),
-                              noise.level = sd(apply(Y[1:N0,1:T0], 1, diff)),
-                              eta.omega = ((nrow(Y)-N0)*(ncol(Y)-T0))^(1/4), eta.lambda = 1e-6,
-                              zeta.omega  = eta.omega  * noise.level,  zeta.lambda = eta.lambda * noise.level,
-                              omega.intercept = TRUE, lambda.intercept = TRUE,
-                              weights = list(omega = NULL, lambda = NULL),
-                              update.omega = is.null(weights$omega), update.lambda = is.null(weights$lambda),
-                              min.decrease = 1e-5 * noise.level, max.iter = 1e4,
-			      sparsify = sparsify_function,
-			      max.iter.pre.sparsify = 100) {
-  stopifnot(nrow(Y) > N0, ncol(Y) > T0, length(dim(X)) %in% c(2, 3), dim(X)[1:2] == dim(Y), is.list(weights),
+synthdid_estimate = function(Y, N0, T0, X = array(dim = c(dim(Y), 0)),
+                             noise.level = sd(apply(Y[1:N0, 1:T0], 1, diff)),
+                             eta.omega = ((nrow(Y) - N0) * (ncol(Y) - T0))^(1 / 4), eta.lambda = 1e-6,
+                             zeta.omega = eta.omega * noise.level, zeta.lambda = eta.lambda * noise.level,
+                             omega.intercept = TRUE, lambda.intercept = TRUE,
+                             weights = list(omega = NULL, lambda = NULL),
+                             update.omega = is.null(weights$omega), update.lambda = is.null(weights$lambda),
+                             min.decrease = 1e-5 * noise.level, max.iter = 1e4,
+                             sparsify = sparsify_function,
+                             max.iter.pre.sparsify = 100) {
+  stopifnot(
+    nrow(Y) > N0, ncol(Y) > T0, length(dim(X)) %in% c(2, 3), dim(X)[1:2] == dim(Y), is.list(weights),
     is.null(weights$lambda) || length(weights$lambda) == T0, is.null(weights$omega) || length(weights$omega) == N0,
-    !is.null(weights$lambda) || update.lambda, !is.null(weights$omega) || update.omega)
-  if (length(dim(X)) == 2) { dim(X) = c(dim(X), 1) }
-  if (is.null(sparsify)) { max.iter.pre.sparsify = max.iter }
+    !is.null(weights$lambda) || update.lambda, !is.null(weights$omega) || update.omega
+  )
+  if (length(dim(X)) == 2) {
+    dim(X) = c(dim(X), 1)
+  }
+  if (is.null(sparsify)) {
+    max.iter.pre.sparsify = max.iter
+  }
   N1 = nrow(Y) - N0
   T1 = ncol(Y) - T0
 
@@ -59,11 +67,15 @@ synthdid_estimate <- function(Y, N0, T0, X = array(dim = c(dim(Y), 0)),
     weights$omega.vals = NULL
     if (update.lambda) {
       Yc = collapsed.form(Y, N0, T0)
-      lambda.opt = sc.weight.fw(Yc[1:N0, ], zeta = zeta.lambda, intercept = lambda.intercept, lambda=weights$lambda,
-				min.decrease = min.decrease, max.iter = max.iter.pre.sparsify)
-      if(!is.null(sparsify)) {
-	lambda.opt = sc.weight.fw(Yc[1:N0, ], zeta = zeta.lambda, intercept = lambda.intercept, lambda=sparsify(lambda.opt$lambda),
-				  min.decrease = min.decrease, max.iter = max.iter)
+      lambda.opt = sc.weight.fw(Yc[1:N0, ],
+        zeta = zeta.lambda, intercept = lambda.intercept, lambda = weights$lambda,
+        min.decrease = min.decrease, max.iter = max.iter.pre.sparsify
+      )
+      if (!is.null(sparsify)) {
+        lambda.opt = sc.weight.fw(Yc[1:N0, ],
+          zeta = zeta.lambda, intercept = lambda.intercept, lambda = sparsify(lambda.opt$lambda),
+          min.decrease = min.decrease, max.iter = max.iter
+        )
       }
       weights$lambda = lambda.opt$lambda
       weights$lambda.vals = lambda.opt$vals
@@ -71,25 +83,36 @@ synthdid_estimate <- function(Y, N0, T0, X = array(dim = c(dim(Y), 0)),
     }
     if (update.omega) {
       Yc = collapsed.form(Y, N0, T0)
-      omega.opt = sc.weight.fw(t(Yc[, 1:T0]), zeta = zeta.omega, intercept = omega.intercept, lambda=weights$omega,
-			       min.decrease = min.decrease, max.iter = max.iter.pre.sparsify)
-      if(!is.null(sparsify)) {
-	omega.opt = sc.weight.fw(t(Yc[, 1:T0]), zeta = zeta.omega, intercept = omega.intercept, lambda=sparsify(omega.opt$lambda),
-			         min.decrease = min.decrease, max.iter = max.iter)
+      omega.opt = sc.weight.fw(t(Yc[, 1:T0]),
+        zeta = zeta.omega, intercept = omega.intercept, lambda = weights$omega,
+        min.decrease = min.decrease, max.iter = max.iter.pre.sparsify
+      )
+      if (!is.null(sparsify)) {
+        omega.opt = sc.weight.fw(t(Yc[, 1:T0]),
+          zeta = zeta.omega, intercept = omega.intercept, lambda = sparsify(omega.opt$lambda),
+          min.decrease = min.decrease, max.iter = max.iter
+        )
       }
       weights$omega = omega.opt$lambda
       weights$omega.vals = omega.opt$vals
-      if (is.null(weights$vals)) { weights$vals = omega.opt$vals }
-      else { weights$vals = pairwise.sum.decreasing(weights$vals, omega.opt$vals) }
+      if (is.null(weights$vals)) {
+        weights$vals = omega.opt$vals
+      } else {
+        weights$vals = pairwise.sum.decreasing(weights$vals, omega.opt$vals)
+      }
     }
   } else {
     Yc = collapsed.form(Y, N0, T0)
-    Xc = apply(X, 3, function(Xi) { collapsed.form(Xi, N0, T0) })
+    Xc = apply(X, 3, function(Xi) {
+      collapsed.form(Xi, N0, T0)
+    })
     dim(Xc) = c(dim(Yc), dim(X)[3])
-    weights = sc.weight.fw.covariates(Yc, Xc, zeta.lambda = zeta.lambda, zeta.omega = zeta.omega,
+    weights = sc.weight.fw.covariates(Yc, Xc,
+      zeta.lambda = zeta.lambda, zeta.omega = zeta.omega,
       lambda.intercept = lambda.intercept, omega.intercept = omega.intercept,
       min.decrease = min.decrease, max.iter = max.iter,
-      lambda = weights$lambda, omega = weights$omega, update.lambda = update.lambda, update.omega = update.omega)
+      lambda = weights$lambda, omega = weights$omega, update.lambda = update.lambda, update.omega = update.omega
+    )
   }
 
   X.beta = contract3(X, weights$beta)
@@ -99,10 +122,12 @@ synthdid_estimate <- function(Y, N0, T0, X = array(dim = c(dim(Y), 0)),
   attr(estimate, 'estimator') = "synthdid_estimate"
   attr(estimate, 'weights') = weights
   attr(estimate, 'setup') = list(Y = Y, X = X, N0 = N0, T0 = T0)
-  attr(estimate, 'opts') = list(zeta.omega = zeta.omega, zeta.lambda = zeta.lambda,
-                                omega.intercept = omega.intercept, lambda.intercept = lambda.intercept,
-                                update.omega = update.omega, update.lambda = update.lambda,
-                                min.decrease = min.decrease, max.iter=max.iter)
+  attr(estimate, 'opts') = list(
+    zeta.omega = zeta.omega, zeta.lambda = zeta.lambda,
+    omega.intercept = omega.intercept, lambda.intercept = lambda.intercept,
+    update.omega = update.omega, update.lambda = update.lambda,
+    min.decrease = min.decrease, max.iter = max.iter
+  )
   return(estimate)
 }
 
@@ -117,8 +142,10 @@ synthdid_estimate <- function(Y, N0, T0, X = array(dim = c(dim(Y), 0)),
 #' @return an object like that returned by synthdid_estimate
 #' @export sc_estimate
 sc_estimate = function(Y, N0, T0, eta.omega = 1e-6, ...) {
-  estimate = synthdid_estimate(Y, N0, T0, eta.omega = eta.omega,
-			       weights = list(lambda = rep(0, T0)), omega.intercept = FALSE, ...)
+  estimate = synthdid_estimate(Y, N0, T0,
+    eta.omega = eta.omega,
+    weights = list(lambda = rep(0, T0)), omega.intercept = FALSE, ...
+  )
   attr(estimate, 'estimator') = "sc_estimate"
   estimate
 }
@@ -149,10 +176,12 @@ synthdid_placebo = function(estimate, treated.fraction = NULL) {
   X.beta = contract3(setup$X, weights$beta)
   estimator = attr(estimate, 'estimator')
 
-  if (is.null(treated.fraction)) { treated.fraction = 1 - setup$T0 / ncol(setup$Y) }
+  if (is.null(treated.fraction)) {
+    treated.fraction = 1 - setup$T0 / ncol(setup$Y)
+  }
   placebo.T0 = floor(setup$T0 * (1 - treated.fraction))
 
-  do.call(estimator, c(list(Y=setup$Y[, 1:setup$T0], N0=setup$N0, T0=placebo.T0, X=setup$X[, 1:setup$T0,]), opts))
+  do.call(estimator, c(list(Y = setup$Y[, 1:setup$T0], N0 = setup$N0, T0 = placebo.T0, X = setup$X[, 1:setup$T0, ]), opts))
 }
 
 #' Outputs the effect curve that was averaged to produce our estimate

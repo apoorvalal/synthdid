@@ -6,7 +6,7 @@
 Takes all the same parameters, but by default, passes options to use the synthetic control estimator
 By default, this uses only 'infinitesimal' ridge regularization when estimating the weights.}
 \usage{
-sc_estimate(Y, N0, T0, eta.omega = 1e-06, ...)
+sc_estimate(Y, N0, T0, eta.omega = 0.000001, ...)
 }
 \arguments{
 \item{Y}{the observation matrix.}

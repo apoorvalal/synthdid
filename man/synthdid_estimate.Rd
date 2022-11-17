@@ -11,7 +11,7 @@ synthdid_estimate(
   X = array(dim = c(dim(Y), 0)),
   noise.level = sd(apply(Y[1:N0, 1:T0], 1, diff)),
   eta.omega = ((nrow(Y) - N0) * (ncol(Y) - T0))^(1/4),
-  eta.lambda = 1e-06,
+  eta.lambda = 0.000001,
   zeta.omega = eta.omega * noise.level,
   zeta.lambda = eta.lambda * noise.level,
   omega.intercept = TRUE,
@@ -19,7 +19,7 @@ synthdid_estimate(
   weights = list(omega = NULL, lambda = NULL),
   update.omega = is.null(weights$omega),
   update.lambda = is.null(weights$lambda),
-  min.decrease = 1e-05 * noise.level,
+  min.decrease = 0.00001 * noise.level,
   max.iter = 10000,
   sparsify = sparsify_function,
   max.iter.pre.sparsify = 100
