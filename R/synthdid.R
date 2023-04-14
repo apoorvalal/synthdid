@@ -179,12 +179,14 @@ synthdid_placebo = function(estimate, treated.fraction = NULL) {
   weights = attr(estimate, 'weights')
   X.beta = contract3(setup$X, weights$beta)
   estimator = attr(estimate, 'estimator')
-  if (is.null(treated.fraction)) {
-    treated.fraction = 1 - setup$T0 / ncol(setup$Y)
-  }
+  if (is.null(treated.fraction)) treated.fraction = 1 - setup$T0 / ncol(setup$Y)
   placebo.T0 = floor(setup$T0 * (1 - treated.fraction))
-
-  do.call(estimator, c(list(Y = setup$Y[, 1:setup$T0], N0 = setup$N0, T0 = placebo.T0, X = setup$X[, 1:setup$T0, ]), opts))
+  do.call(estimator,
+    c(list(Y = setup$Y[, 1:setup$T0],
+           N0 = setup$N0,
+           T0 = placebo.T0,
+           X = setup$X[, 1:setup$T0, ]),
+          opts))
 }
 
 #' Outputs the effect curve that was averaged to produce our estimate

@@ -8,6 +8,7 @@
   object,
   method = c("bootstrap", "jackknife", "placebo"),
   replications = 200,
+  ncores = 8,
   ...
 )
 }

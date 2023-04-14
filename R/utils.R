@@ -20,6 +20,35 @@ pairwise.sum.decreasing = function(x, y) {
 }
 
 # %%
+# A convenience function for generating data for unit tests.
+random.low.rank = function() {
+  n_0 = 100
+  n_1 = 10
+  T_0 = 120
+  T_1 = 20
+  n = n_0 + n_1
+  T = T_0 + T_1
+  tau = 1
+  sigma = .5
+  rank = 2
+  rho = 0.7
+  var = outer(1:T, 1:T, FUN = function(x, y) rho^(abs(x - y)))
+  W = (1:n > n_0) %*% t(1:T > T_0)
+  U = matrix(rpois(rank * n, sqrt(sample(1:n)) / sqrt(n)), n, rank)
+  V = matrix(rpois(rank * T, sqrt(1:T) / sqrt(T)), T, rank)
+  alpha = outer(10 * sample(1:n) / n, rep(1, T))
+  beta = outer(rep(1, n), 10 * (1:T) / T)
+  mu = U %*% t(V) + alpha + beta
+  error = mvtnorm::rmvnorm(n, sigma = var, method = "chol")
+  Y = mu + tau * W + sigma * error
+  rownames(Y) = 1:n
+  colnames(Y) = 1:T
+  out = list(Y = Y, L = mu, N0 = n_0, T0 = T_0)
+  class(out) = "SynthSetup"
+  return(out)
+}
+
+
 # %% ####################################################
 #' Convert a long panel to wide matrix (cleaner data.table version)
 #' @param dt data.table in long panel format
@@ -53,7 +82,9 @@ panelMatrices = function(dt, unit_id, time_id, treat, outcome) {
   Y = rbind(Y[-treatIDs, ], Y[treatIDs, , drop = FALSE])
   N0 = nrow(W) - length(treatIDs)
   T0 = min(which(colSums(W) > 0)) - 1
-  list(W = W, Y = Y, N0 = N0, T0 = T0)
+  out = list(W = W, Y = Y, N0 = N0, T0 = T0)
+  class(out) = "SynthSetup"
+  return(out)
 }
 
 # %%
@@ -206,29 +237,3 @@ setMethod(omega, signature = 'synthdid_estimate', definition = function(object) 
 })
 
 
-# %%
-# A convenience function for generating data for unit tests.
-random.low.rank = function() {
-  n_0 = 100
-  n_1 = 10
-  T_0 = 120
-  T_1 = 20
-  n = n_0 + n_1
-  T = T_0 + T_1
-  tau = 1
-  sigma = .5
-  rank = 2
-  rho = 0.7
-  var = outer(1:T, 1:T, FUN = function(x, y) rho^(abs(x - y)))
-  W = (1:n > n_0) %*% t(1:T > T_0)
-  U = matrix(rpois(rank * n, sqrt(sample(1:n)) / sqrt(n)), n, rank)
-  V = matrix(rpois(rank * T, sqrt(1:T) / sqrt(T)), T, rank)
-  alpha = outer(10 * sample(1:n) / n, rep(1, T))
-  beta = outer(rep(1, n), 10 * (1:T) / T)
-  mu = U %*% t(V) + alpha + beta
-  error = mvtnorm::rmvnorm(n, sigma = var, method = "chol")
-  Y = mu + tau * W + sigma * error
-  rownames(Y) = 1:n
-  colnames(Y) = 1:T
-  list(Y = Y, L = mu, N0 = n_0, T0 = T_0)
-}

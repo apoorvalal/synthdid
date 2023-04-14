@@ -11,10 +11,17 @@
 #' @references Arkhangelsky et al (2021), "Synthetic Difference in Differences", AER
 #' @export
 #' @importFrom MCPanel mcnnm_cv
+#' @importFrom mcreplicate mc_replicate
 panel_estimate = function(df, unit_id, time_id, treatment, outcome,
     mccores = 8, reps = 200,
     infmethod = c("jackknife", "placebo", "bootstrap")
     ) {
+  # check
+  if (requireNamespace("MCPanel", quietly = TRUE)) {
+    .ignore = tryCatch(attachNamespace("MCPanel"), error = function(e) e)
+  } else {
+    stop("Please install the MCPanel Package for this function.")
+  }
   infmethod = match.arg(infmethod)
   # call internal function to reshape data to N X T matrix with treated obs at the bottom
   setup = panelMatrices(df, unit_id, time_id, treatment, outcome)
@@ -65,12 +72,14 @@ panel_estimate = function(df, unit_id, time_id, treatment, outcome,
   # apply estimator functions to setup matrix
   estimates = lapply(estimators, \(e) e(setup$Y, setup$N0, setup$T0))
   # inference
-  standard_errors = mapply(function(e, n) {
+  standard_errors = mapply(\(e, n) {
     switch(n,
       "Matrix Completion" = mc_placebo_se(setup$Y, setup$N0, setup$T0),
-      sqrt(vcov(e, method = infmethod))
+      sqrt(vcov(e, method = infmethod, ncores = mccores))
     )
   }, estimates, names(estimators))
   # return table as a matrix
-  rbind(unlist(estimates), unlist(standard_errors))
+  res = rbind(unlist(estimates), unlist(standard_errors))
+  rownames(res) = c("Est", "Std. Error")
+  return(res)
 }

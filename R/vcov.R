@@ -24,35 +24,34 @@
 #' @export
 vcov.synthdid_estimate = function(object,
                                   method = c("bootstrap", "jackknife", "placebo"),
-                                  replications = 200, ...) {
+                                  replications = 200,
+                                  ncores = 8,
+                                  ...) {
   method = match.arg(method)
   if (method == 'bootstrap') {
-    se = bootstrap_se(object, replications)
+    se = bootstrap_se(object, replications, ncores)
   } else if (method == 'jackknife') {
     se = jackknife_se(object)
   } else if (method == 'placebo') {
-    se = placebo_se(object, replications)
+    se = placebo_se(object, replications, ncores)
   }
   matrix(se^2)
 }
 
-#' Calculate the standard error of a synthetic diff in diff estimate. Deprecated. Use vcov.synthdid_estimate.
-#' @param ... Any valid arguments for vcov.synthdid_estimate
-#' @export synthdid_se
-synthdid_se = \(...) sqrt(vcov(...))
-
 # The bootstrap se: Algorithm 2 of Arkhangelsky et al.
-bootstrap_se = function(estimate, replications) {
-  sqrt((replications - 1) / replications) * sd(bootstrap_sample(estimate, replications))
+bootstrap_se = function(estimate, replications, ncores) {
+  sqrt((replications - 1) / replications) * sd(
+    bootstrap_sample(estimate, replications, ncores)
+  )
 }
 
-bootstrap_sample = function(estimate, replications) {
+bootstrap_sample = function(estimate, replications, ncores) {
   setup = attr(estimate, 'setup')
   opts = attr(estimate, 'opts')
   weights = attr(estimate, 'weights')
   if (setup$N0 == nrow(setup$Y) - 1) return(NA)
-
-  theta = function(ind) {
+  # main compute function
+  theta = function(ind = sample(1:nrow(setup$Y), replace = TRUE)) {
     if (all(ind <= setup$N0) || all(ind > setup$N0)) {
       NA
     } else {
@@ -66,16 +65,11 @@ bootstrap_sample = function(estimate, replications) {
           opts))
     }
   }
-  bootstrap.estimates = rep(NA, replications)
-  count = 0
-  # !TODO: parallelize using mc_replicate(replications)
-  while (count < replications) {
-    bootstrap.estimates[count + 1] = theta(sample(1:nrow(setup$Y), replace = TRUE))
-    if (!is.na(bootstrap.estimates[count + 1])) {
-      count = count + 1
-    }
-  }
-  bootstrap.estimates
+  bootstrap.estimates = mcreplicate::mc_replicate(
+    replications,
+    theta(),
+    mc.cores = ncores)
+  as.numeric(na.omit(bootstrap.estimates))
 }
 
 
@@ -85,9 +79,8 @@ bootstrap_sample = function(estimate, replications) {
 jackknife_se = function(estimate, weights = attr(estimate, 'weights')) {
   setup = attr(estimate, 'setup')
   opts = attr(estimate, 'opts')
-  if (!is.null(weights)) {
-    opts$update.omega = opts$update.lambda = FALSE
-  }
+  if (!is.null(weights)) opts$update.omega = opts$update.lambda = FALSE
+  # not defined if only 1 unit is treated
   if (setup$N0 == nrow(setup$Y) - 1 || (!is.null(weights) && sum(weights$omega != 0) == 1)) {
     return(NA)
   }
