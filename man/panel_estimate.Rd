@@ -12,7 +12,7 @@ panel_estimate(
   outcome,
   mccores = 8,
   reps = 200,
-  defInf = "jackknife"
+  infmethod = c("jackknife", "placebo", "bootstrap")
 )
 }
 \arguments{
@@ -25,6 +25,12 @@ panel_estimate(
 \item{treatment}{identifier for binary treatment (column name)}
 
 \item{outcome}{identifier for outcome (column name)}
+
+\item{mccores}{number of cores to parallelize inference (whenever possible)}
+
+\item{reps}{number of reps for bootstrap}
+
+\item{infmethod}{Inference method (must be in c("bootstrap", "jackknife", "placebo"))}
 }
 \value{
 matrix with estimates and standard errors

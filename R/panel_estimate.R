@@ -4,13 +4,18 @@
 #' @param time_id identifier for time periods (column name)
 #' @param treatment identifier for binary treatment (column name)
 #' @param outcome identifier for outcome (column name)
+#' @param mccores number of cores to parallelize inference (whenever possible)
+#' @param reps number of reps for bootstrap
+#' @param infmethod Inference method (must be in c("bootstrap", "jackknife", "placebo"))
 #' @return matrix with estimates and standard errors
 #' @references Arkhangelsky et al (2021), "Synthetic Difference in Differences", AER
 #' @export
 #' @importFrom MCPanel mcnnm_cv
 panel_estimate = function(df, unit_id, time_id, treatment, outcome,
-    mccores = 8, reps = 200, defInf = "jackknife"
+    mccores = 8, reps = 200,
+    infmethod = c("jackknife", "placebo", "bootstrap")
     ) {
+  infmethod = match.arg(infmethod)
   # call internal function to reshape data to N X T matrix with treated obs at the bottom
   setup = panelMatrices(df, unit_id, time_id, treatment, outcome)
   ######################################################################
@@ -27,11 +32,11 @@ panel_estimate = function(df, unit_id, time_id, treatment, outcome,
     mc_est
   }
   # standard error constructor for matrix comletion
-  mc_placebo_se = function(Y, N0, T0, replications = reps, mccores = mccores) {
+  mc_placebo_se = function(Y, N0, T0) {
     N1 = nrow(Y) - N0
     theta = \(ind)  mc_estimate(Y[ind, ], length(ind) - N1, T0)
-    sqrt((replications - 1) / replications) * sd(
-      mcreplicate::mc_replicate(replications, theta(sample(1:N0)), mc.cores = mccores),
+    sqrt((reps - 1) / reps) * sd(
+      mcreplicate::mc_replicate(reps, theta(sample(1:N0)), mc.cores = mccores),
     )
   }
   difp_estimate = \(Y, N0, T0){
@@ -63,7 +68,7 @@ panel_estimate = function(df, unit_id, time_id, treatment, outcome,
   standard_errors = mapply(function(e, n) {
     switch(n,
       "Matrix Completion" = mc_placebo_se(setup$Y, setup$N0, setup$T0),
-      sqrt(vcov(e, method = defInf))
+      sqrt(vcov(e, method = infmethod))
     )
   }, estimates, names(estimators))
   # return table as a matrix
