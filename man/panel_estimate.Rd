@@ -4,7 +4,16 @@
 \alias{panel_estimate}
 \title{Implement many panel estimators at once. Implements DiD, Synth, Matrix Completion, SDID with and without Intercept and time weights}
 \usage{
-panel_estimate(df, unit_id, time_id, treatment, outcome)
+panel_estimate(
+  df,
+  unit_id,
+  time_id,
+  treatment,
+  outcome,
+  mccores = 8,
+  reps = 200,
+  defInf = "jackknife"
+)
 }
 \arguments{
 \item{df}{data frame (must be a balanced panel)}
