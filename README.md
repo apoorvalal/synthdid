@@ -25,7 +25,7 @@ Some helpful links for getting started:
 The current development version can be installed from source using devtools.
 
 ```R
-devtools::install_github("synth-inference/synthdid")
+devtools::install_github("apoorvalal/synthdid")
 ```
 
 ### Example
