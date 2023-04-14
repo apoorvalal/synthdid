@@ -39,33 +39,36 @@ vcov.synthdid_estimate = function(object,
 #' Calculate the standard error of a synthetic diff in diff estimate. Deprecated. Use vcov.synthdid_estimate.
 #' @param ... Any valid arguments for vcov.synthdid_estimate
 #' @export synthdid_se
-synthdid_se = function(...) {
-  sqrt(vcov(...))
-}
-
+synthdid_se = \(...) sqrt(vcov(...))
 
 # The bootstrap se: Algorithm 2 of Arkhangelsky et al.
 bootstrap_se = function(estimate, replications) {
   sqrt((replications - 1) / replications) * sd(bootstrap_sample(estimate, replications))
 }
+
 bootstrap_sample = function(estimate, replications) {
   setup = attr(estimate, 'setup')
   opts = attr(estimate, 'opts')
   weights = attr(estimate, 'weights')
-  if (setup$N0 == nrow(setup$Y) - 1) {
-    return(NA)
-  }
+  if (setup$N0 == nrow(setup$Y) - 1) return(NA)
+
   theta = function(ind) {
     if (all(ind <= setup$N0) || all(ind > setup$N0)) {
       NA
     } else {
       weights.boot = weights
       weights.boot$omega = sum_normalize(weights$omega[sort(ind[ind <= setup$N0])])
-      do.call(synthdid_estimate, c(list(Y = setup$Y[sort(ind), ], N0 = sum(ind <= setup$N0), T0 = setup$T0, X = setup$X[sort(ind), , ], weights = weights.boot), opts))
+      do.call(synthdid_estimate,
+        c(list(Y = setup$Y[sort(ind), ],
+              N0 = sum(ind <= setup$N0),
+              T0 = setup$T0, X = setup$X[sort(ind), , ],
+              weights = weights.boot),
+          opts))
     }
   }
   bootstrap.estimates = rep(NA, replications)
   count = 0
+  # !TODO: parallelize using mc_replicate(replications)
   while (count < replications) {
     bootstrap.estimates[count + 1] = theta(sample(1:nrow(setup$Y), replace = TRUE))
     if (!is.na(bootstrap.estimates[count + 1])) {
@@ -95,7 +98,11 @@ jackknife_se = function(estimate, weights = attr(estimate, 'weights')) {
     }
     estimate.jk = do.call(
       synthdid_estimate,
-      c(list(Y = setup$Y[ind, ], N0 = sum(ind <= setup$N0), T0 = setup$T0, X = setup$X[ind, , ], weights = weights.jk), opts)
+      c(list(Y = setup$Y[ind, ],
+            N0 = sum(ind <= setup$N0),
+            T0 = setup$T0, X = setup$X[ind, , ],
+            weights = weights.jk),
+          opts)
     )
   }
   jackknife(1:nrow(setup$Y), theta)
@@ -113,14 +120,12 @@ jackknife = function(x, theta) {
     u[i] = theta(x[-i])
   }
   jack.se = sqrt(((n - 1) / n) * (n - 1) * var(u))
-
   jack.se
 }
 
 
-
 # The placebo se: Algorithm 4 of Arkhangelsky et al.
-placebo_se = function(estimate, replications) {
+placebo_se = function(estimate, replications, ncores = 8) {
   setup = attr(estimate, 'setup')
   opts = attr(estimate, 'opts')
   weights = attr(estimate, 'weights')
@@ -132,9 +137,19 @@ placebo_se = function(estimate, replications) {
     N0 = length(ind) - N1
     weights.boot = weights
     weights.boot$omega = sum_normalize(weights$omega[ind[1:N0]])
-    do.call(synthdid_estimate, c(list(Y = setup$Y[ind, ], N0 = N0, T0 = setup$T0, X = setup$X[ind, , ], weights = weights.boot), opts))
+    do.call(synthdid_estimate,
+      c(list(
+        Y = setup$Y[ind, ],
+        N0 = N0, T0 = setup$T0,
+        X = setup$X[ind, , ],
+        weights = weights.boot),
+      opts))
   }
-  sqrt((replications - 1) / replications) * sd(replicate(replications, theta(sample(1:setup$N0))))
+  # parallelize placebo
+  sqrt((replications - 1) / replications) * sd(
+      mcreplicate::mc_replicate(replications, theta(sample(1:setup$N0)),
+        mc.cores = ncores)
+  )
 }
 
 sum_normalize = function(x) {

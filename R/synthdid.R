@@ -1,9 +1,9 @@
 #' A function mapping a numeric vector to a (presumably sparser) numeric vector of the same shape to
 #' be passed onto synthdid_estimate.
 #' @param v a vector
-sparsify_function = function(v){
+sparsify_function = \(v) {
     v[v <= max(v) / 4] = 0; v / sum(v)
-  }
+}
 
 #' Computes the synthetic diff-in-diff estimate for an average treatment effect on a treated block.
 #'
@@ -37,16 +37,18 @@ sparsify_function = function(v){
 #'         as well as regression coefficients beta if X is passed.
 #'         'setup' is a list describing the problem passed in: Y, N0, T0, X.
 #' @export synthdid_estimate
-synthdid_estimate = function(Y, N0, T0, X = array(dim = c(dim(Y), 0)),
-                             noise.level = sd(apply(Y[1:N0, 1:T0], 1, diff)),
-                             eta.omega = ((nrow(Y) - N0) * (ncol(Y) - T0))^(1 / 4), eta.lambda = 1e-6,
-                             zeta.omega = eta.omega * noise.level, zeta.lambda = eta.lambda * noise.level,
-                             omega.intercept = TRUE, lambda.intercept = TRUE,
-                             weights = list(omega = NULL, lambda = NULL),
-                             update.omega = is.null(weights$omega), update.lambda = is.null(weights$lambda),
-                             min.decrease = 1e-5 * noise.level, max.iter = 1e4,
-                             sparsify = sparsify_function,
-                             max.iter.pre.sparsify = 100) {
+synthdid_estimate = function(Y, N0, T0,
+                            X = array(dim = c(dim(Y), 0)),
+                            noise.level = sd(apply(Y[1:N0, 1:T0], 1, diff)),
+                            eta.omega = ((nrow(Y) - N0) * (ncol(Y) - T0))^(1 / 4), eta.lambda = 1e-6,
+                            zeta.omega = eta.omega * noise.level, zeta.lambda = eta.lambda * noise.level,
+                            omega.intercept = TRUE, lambda.intercept = TRUE,
+                            weights = list(omega = NULL, lambda = NULL),
+                            update.omega = is.null(weights$omega),
+                            update.lambda = is.null(weights$lambda),
+                            min.decrease = 1e-5 * noise.level, max.iter = 1e4,
+                            sparsify = sparsify_function,
+                            max.iter.pre.sparsify = 100) {
   stopifnot(
     nrow(Y) > N0, ncol(Y) > T0, length(dim(X)) %in% c(2, 3), dim(X)[1:2] == dim(Y), is.list(weights),
     is.null(weights$lambda) || length(weights$lambda) == T0, is.null(weights$omega) || length(weights$omega) == N0,
@@ -159,7 +161,9 @@ sc_estimate = function(Y, N0, T0, eta.omega = 1e-6, ...) {
 #' @return an object like that returned by synthdid_estimate
 #' @export did_estimate
 did_estimate = function(Y, N0, T0, ...) {
-  estimate = synthdid_estimate(Y, N0, T0, weights = list(lambda = rep(1 / T0, T0), omega = rep(1 / N0, N0)), ...)
+  estimate = synthdid_estimate(Y, N0, T0,
+      weights = list(lambda = rep(1 / T0, T0),
+      omega = rep(1 / N0, N0)), ...)
   attr(estimate, 'estimator') = "did_estimate"
   estimate
 }
@@ -175,7 +179,6 @@ synthdid_placebo = function(estimate, treated.fraction = NULL) {
   weights = attr(estimate, 'weights')
   X.beta = contract3(setup$X, weights$beta)
   estimator = attr(estimate, 'estimator')
-
   if (is.null(treated.fraction)) {
     treated.fraction = 1 - setup$T0 / ncol(setup$Y)
   }
@@ -193,7 +196,6 @@ synthdid_effect_curve = function(estimate) {
   X.beta = contract3(setup$X, weights$beta)
   N1 = nrow(setup$Y) - setup$N0
   T1 = ncol(setup$Y) - setup$T0
-
   tau.sc = t(c(-weights$omega, rep(1 / N1, N1))) %*% (setup$Y - X.beta)
   tau.curve = tau.sc[setup$T0 + (1:T1)] - c(tau.sc[1:setup$T0] %*% weights$lambda)
   tau.curve
