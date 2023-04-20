@@ -77,7 +77,7 @@ panelMatrices = function(dt, unit_id, time_id, treat, outcome) {
   kv = c(unit_id, time_id, outcome)
   Y = matfy(dcast(dt[, ..kv], fmla, value.var = outcome))
   # move treated units to bottom of W and Y matrix
-  treatIDs = which(rowSums(W) > 1)
+  treatIDs = which(rowSums(W) > 0)
   W = rbind(W[-treatIDs, ], W[treatIDs, , drop = FALSE])
   Y = rbind(Y[-treatIDs, ], Y[treatIDs, , drop = FALSE])
   N0 = nrow(W) - length(treatIDs)
