@@ -29,12 +29,16 @@ panel_estimate = function(df, unit_id, time_id, treatment, outcome,
   # nonstandard estimators : MC is self-contained, others involve existing functions
   # (feed in different weighting schemes)
   ######################################################################
+  mc_imputation = function(Y, N0, T0, N1, T1){
+    W = outer(c(rep(0, N0), rep(1, N1)), c(rep(0, T0), rep(1, T1)))
+    mc_pred = MCPanel::mcnnm_cv(Y, 1 - W, num_lam_L = 20)
+    mc_fit = mc_pred$L + outer(mc_pred$u, mc_pred$v, '+')
+  }
   mc_estimate = function(Y, N0, T0) {
     N1 = nrow(Y) - N0
     T1 = ncol(Y) - T0
     W = outer(c(rep(0, N0), rep(1, N1)), c(rep(0, T0), rep(1, T1)))
-    mc_pred = MCPanel::mcnnm_cv(Y, 1 - W, num_lam_L = 20)
-    mc_fit = mc_pred$L + outer(mc_pred$u, mc_pred$v, '+')
+    mc_fit = mc_imputation(Y, N0, T0, N1, T1)
     mc_est = sum(W * (Y - mc_fit)) / sum(W)
     mc_est
   }
@@ -46,16 +50,20 @@ panel_estimate = function(df, unit_id, time_id, treatment, outcome,
       mcreplicate::mc_replicate(reps, theta(sample(1:N0)), mc.cores = mccores),
     )
   }
-  difp_estimate = \(Y, N0, T0){
+  # special cases of existing fns
+  difp_estimate = \(Y, N0, T0) {
     synthdid_estimate(Y, N0, T0, weights = list(lambda = rep(1 / T0, T0)), eta.omega = 1e-6)
   }
-  difp_estimate_reg = \(Y, N0, T0){
+  difp_estimate_reg = \(Y, N0, T0) {
     synthdid_estimate(Y, N0, T0, weights = list(lambda = rep(1 / T0, T0)))
   }
-  sc_estimate_reg = \(Y, N0, T0){
+  twdid_estimate_reg = \(Y, N0, T0) {
+    synthdid_estimate(Y, N0, T0, weights = list(omega = rep(1 / N0, N0)))
+  }
+  sc_estimate_reg = \(Y, N0, T0) {
     sc_estimate(Y, N0, T0, eta.omega = ((nrow(Y) - N0) * (ncol(Y) - T0))^(1 / 4))
   }
-  sdid_estimate_noint = \(Y, N0, T0){
+  sdid_estimate_noint = \(Y, N0, T0) {
     synthdid_estimate(Y, N0, T0, omega.intercept = FALSE)
   }
   # list of estimation functions
@@ -63,6 +71,7 @@ panel_estimate = function(df, unit_id, time_id, treatment, outcome,
     "DID" = did_estimate,
     "Synthetic Control (SC)" = sc_estimate,
     "Synthetic DID (SDID)" = synthdid_estimate,
+    "Time Weighted DID"   = twdid_estimate_reg,
     "SDID (No Intercept)" = sdid_estimate_noint,
     "SC with FEs (DIFP)" = difp_estimate,
     "Matrix Completion" = mc_estimate,
@@ -79,7 +88,59 @@ panel_estimate = function(df, unit_id, time_id, treatment, outcome,
     )
   }, estimates, names(estimators))
   # return table as a matrix
-  res = rbind(unlist(estimates), unlist(standard_errors))
-  rownames(res) = c("Est", "Std. Error")
-  return(res)
+  sumtab = rbind(unlist(estimates), unlist(standard_errors))
+  rownames(sumtab) = c("Est", "Std. Error")
+  retobj = list(
+      ests = estimates,
+      summary_table = sumtab
+    )
+  class(retobj) = "panelEstimate"
+  return(retobj)
 }
+
+# %% ####################################################
+#' print method (prints summary table)
+#' @param data [data.frame, matrix] data table (n x p)
+#' @export
+print.panelEstimate = \(x) {
+  print(x$summary_table)
+}
+
+# construct event study estimates from class synthdid_estimate
+event_study_coefs = \(est) {
+  setup = attr(est, 'setup')
+  weights = attr(est, 'weights')
+  Y = setup$Y
+  N0 = setup$N0; N1 = nrow(Y) - N0
+  T0 = setup$T0; T1 = ncol(Y) - T0
+  lambda.synth = c(weights$lambda, rep(0, T1))
+  lambda.target = c(rep(0, T0), rep(1 / T1, T1))
+  omega.synth = c(weights$omega, rep(0, N1))
+  omega.target = c(rep(0, N0), rep(1 / N1, N1))
+  offset = c((omega.target - omega.synth) %*% Y %*% lambda.synth)
+  obs.trajectory = as.numeric(omega.target %*% Y)
+  syn.trajectory = as.numeric(omega.synth %*% Y) + offset
+  obs.trajectory - syn.trajectory
+}
+
+# evstudy_fig = \(ests, title, yl = 3) {
+#   # compute ATTs (added to legend)
+#   atts = round(ests[8,], 3)
+#   colours = RColorBrewer::brewer.pal(ncol(ests), "Paired")
+#   matplot(ests,
+#     type = 'l', col = colours, lwd = 2, lty = 2,
+#     ylab = "Coef. Estimate", xlab = "Time", axes = F,
+#     ylim = c(-1*yl, yl),
+#     main = title
+#   )
+#   matpoints(ests, pch = 16, col = colours, lwd = 2, lty = 2)
+#   abline(h = 0, lty = 3)
+#   abline(v = 7.5, lty = 4)
+#   legend("bottomleft", colnames(ests),
+#     col = colours, lty = 1, ncol = 2, cex = 0.9,
+#     x.intersp = 0.8, text.width = 2, lwd = 5
+#   )
+#   axis(2)
+#   axis(side = 1, at = 1:nrow(ests), labels = seq(1992, 2020, 4))
+# }
+

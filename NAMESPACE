@@ -2,6 +2,7 @@
 
 S3method(format,synthdid_estimate)
 S3method(plot,synthdid_estimate)
+S3method(print,panelEstimate)
 S3method(print,synthdid_estimate)
 S3method(summary,synthdid_estimate)
 S3method(vcov,synthdid_estimate)
