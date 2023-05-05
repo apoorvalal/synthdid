@@ -84,7 +84,7 @@ panel_estimate = function(df, unit_id, time_id, treatment, outcome,
   standard_errors = mapply(\(e, n) {
     switch(n,
       "Matrix Completion" = mc_placebo_se(setup$Y, setup$N0, setup$T0),
-      sqrt(vcov(e, method = infmethod, ncores = mccores))
+      sqrt(vcov(e, method = infmethod, ncores = mccores, replications = reps))
     )
   }, estimates, names(estimators))
   # return table as a matrix
