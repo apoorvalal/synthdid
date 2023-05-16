@@ -12,6 +12,8 @@ panel_estimate(
   outcome,
   mccores = 8,
   reps = 200,
+  methods = c("DID", "Synthetic Control (SC)", "Synthetic DID (SDID)",
+    "Matrix Completion"),
   infmethod = c("jackknife", "placebo", "bootstrap")
 )
 }
@@ -30,10 +32,12 @@ panel_estimate(
 
 \item{reps}{number of reps for bootstrap}
 
+\item{methods}{character vector of methods to implement. Must be subset of c("DID", "Synthetic Control (SC)", "Synthetic DID (SDID)", "Time Weighted DID", "SDID (No Intercept)", "SC with FEs (DIFP)", "Matrix Completion", "SC (Regularized)", "DIFP (Regularized)")}
+
 \item{infmethod}{Inference method (must be in c("bootstrap", "jackknife", "placebo"))}
 }
 \value{
-matrix with estimates and standard errors
+list with matrix with estimates and standard errors and underlying \code{synthdid_estimate} objects, which can individually be plotted / summarized.
 }
 \description{
 Implement many panel estimators at once. Implements DiD, Synth, Matrix Completion, SDID with and without Intercept and time weights

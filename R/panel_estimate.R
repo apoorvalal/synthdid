@@ -6,14 +6,16 @@
 #' @param outcome identifier for outcome (column name)
 #' @param mccores number of cores to parallelize inference (whenever possible)
 #' @param reps number of reps for bootstrap
+#' @param methods character vector of methods to implement. Must be subset of c("DID", "Synthetic Control (SC)", "Synthetic DID (SDID)", "Time Weighted DID", "SDID (No Intercept)", "SC with FEs (DIFP)", "Matrix Completion", "SC (Regularized)", "DIFP (Regularized)")
 #' @param infmethod Inference method (must be in c("bootstrap", "jackknife", "placebo"))
-#' @return matrix with estimates and standard errors
+#' @return list with matrix with estimates and standard errors and underlying `synthdid_estimate` objects, which can individually be plotted / summarized.
 #' @references Arkhangelsky et al (2021), "Synthetic Difference in Differences", AER
 #' @export
 #' @importFrom MCPanel mcnnm_cv
 #' @importFrom mcreplicate mc_replicate
 panel_estimate = function(df, unit_id, time_id, treatment, outcome,
     mccores = 8, reps = 200,
+    methods = c("DID", "Synthetic Control (SC)", "Synthetic DID (SDID)", "Matrix Completion"),
     infmethod = c("jackknife", "placebo", "bootstrap")
     ) {
   # check
@@ -67,7 +69,7 @@ panel_estimate = function(df, unit_id, time_id, treatment, outcome,
     synthdid_estimate(Y, N0, T0, omega.intercept = FALSE)
   }
   # list of estimation functions
-  estimators = list(
+  all_estimators = list(
     "DID" = did_estimate,
     "Synthetic Control (SC)" = sc_estimate,
     "Synthetic DID (SDID)" = synthdid_estimate,
@@ -78,6 +80,9 @@ panel_estimate = function(df, unit_id, time_id, treatment, outcome,
     "SC (Regularized)" = sc_estimate_reg,
     "DIFP (Regularized)" = difp_estimate_reg
   )
+  # select subset
+  selected = which(!is.na(match(names(all_estimators), methods)))
+  estimators = all_estimators[selected]
   # apply estimator functions to setup matrix
   estimates = lapply(estimators, \(e) e(setup$Y, setup$N0, setup$T0))
   # inference
