@@ -6,6 +6,7 @@ Author: Dmitry Arkhangelsky [aut]
         David A. Hirshberg [aut, cre]
         Guido W. Imbens [aut]
         Stefan Wager [aut]
+        Apoorva Lal [ctb]
 Maintainer: David A. Hirshberg <david.a.hirshberg@gmail.com>
 Description: Estimate average treatment effects in panel data.
     Currently provides methods only for the case that all treated units
@@ -15,6 +16,8 @@ Depends:
 Imports:
     mvtnorm,
     MCPanel,
+    ebal,
+    plot.matrix,
     mcreplicate
 License: GPL (>= 2) | BSD_3_clause + file LICENSE
 Encoding: UTF-8
