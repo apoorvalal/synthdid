@@ -21,6 +21,7 @@ Some helpful links for getting started:
 
 ```R
 devtools::install_github("susanathey/MCPanel")
+devtools::install_github("apoorvalal/ebal")
 devtools::install_github("apoorvalal/synthdid")
 ```
 
